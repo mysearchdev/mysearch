@@ -1,16 +1,22 @@
 package dev.mysearch.search;
 
+import java.io.IOException;
 import java.nio.file.Path;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.FSDirectory;
 
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
-@Data
 @Slf4j
 public class IndexContext {
 
@@ -18,8 +24,12 @@ public class IndexContext {
 	private IndexWriterConfig iwc;
 	private Path indexDir;
 	private FSDirectory dir;
+	private IndexWriter indexWriter;
+	private DirectoryReader reader;
 
-	public IndexContext(String rootIndexDir, String indexName) throws Exception {
+	private boolean readerNeedsToReopen;
+
+	public IndexContext(String rootIndexDir, String indexName) throws IOException {
 
 		indexDir = Path.of(rootIndexDir, indexName);
 
@@ -27,12 +37,53 @@ public class IndexContext {
 		analyzer = new StandardAnalyzer();
 		iwc = new IndexWriterConfig(analyzer);
 		iwc.setOpenMode(OpenMode.CREATE_OR_APPEND);
-
+		indexWriter = new IndexWriter(dir, iwc);
 	}
 
-	public void close() throws Exception {
-		analyzer.close();
-		dir.close();
+	public IndexSearcher getSearcher() {
+		return new IndexSearcher(getReader());
+	}
+
+	public DirectoryReader getReader() {
+
+		try {
+
+			if (readerNeedsToReopen) {
+				readerNeedsToReopen = false;
+				if (reader != null)
+					IOUtils.close(reader);
+				reader = null;
+			}
+
+			if (reader == null) {
+				reader = DirectoryReader.open(dir);
+			}
+		} catch (IOException e) {
+			log.error("Error: ", e);
+		}
+		return reader;
+	}
+
+	public void close() {
+		log.debug("Closed index: " + dir);
+		IOUtils.closeQuietly(reader);
+		IOUtils.closeQuietly(indexWriter);
+		IOUtils.closeQuietly(analyzer);
+		IOUtils.closeQuietly(dir);
+	}
+
+	public void updateDocument(Term term, Iterable<? extends IndexableField> luceneDocument) throws IOException {
+		this.indexWriter.updateDocument(term, luceneDocument);
+		readerNeedsToReopen = true;
+	}
+
+	public void commit() throws IOException {
+		this.indexWriter.commit();
+		readerNeedsToReopen = true;
+	}
+
+	public Path getIndexDir() {
+		return this.indexDir;
 	}
 
 }

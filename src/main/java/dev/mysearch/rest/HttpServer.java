@@ -1,5 +1,6 @@
 package dev.mysearch.rest;
 
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -9,6 +10,7 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.logging.LogLevel;
@@ -17,12 +19,15 @@ import lombok.extern.slf4j.Slf4j;
 
 @Service
 @Slf4j
-public class HttpServer implements InitializingBean {
+public class HttpServer implements InitializingBean, DisposableBean {
 
 	private int port = 8080;
 
 	@Autowired
 	private SearchHttpServerHandler handler;
+
+	private NioEventLoopGroup bossGroup;
+	private NioEventLoopGroup workerGroup;
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
@@ -55,6 +60,8 @@ public class HttpServer implements InitializingBean {
 							var p = ch.pipeline();
 							p.addLast(new HttpRequestDecoder());
 							p.addLast(new HttpResponseEncoder());
+							p.addLast(new HttpObjectAggregator(1048576));
+
 							p.addLast(handler);
 						}
 					});
@@ -66,6 +73,12 @@ public class HttpServer implements InitializingBean {
 			bossGroup.shutdownGracefully();
 			workerGroup.shutdownGracefully();
 		}
+	}
+
+	@Override
+	public void destroy() throws Exception {
+		bossGroup.shutdownGracefully();
+		workerGroup.shutdownGracefully();
 	}
 
 }

@@ -1,8 +1,6 @@
 package dev.mysearch.rest;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.CONTINUE;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 import java.util.Map;
 
@@ -10,10 +8,11 @@ import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
+import dev.mysearch.common.Json;
 import dev.mysearch.rest.endpont.AbstractRestEndpoint;
+import dev.mysearch.rest.endpont.MySearchException;
+import dev.mysearch.rest.endpont.document.DocumentAddEndpoint;
+import dev.mysearch.rest.endpont.document.DocumentGetByIdEndpoint;
 import dev.mysearch.rest.endpont.index.IndexCreateEndpoint;
 import dev.mysearch.rest.endpont.index.IndexDropEndpoint;
 import dev.mysearch.rest.endpont.server.ServerInfoEndpoint;
@@ -39,8 +38,6 @@ import lombok.extern.slf4j.Slf4j;
 @Sharable
 public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object> implements InitializingBean {
 
-	private ObjectMapper mapper = new ObjectMapper();
-
 	@Autowired
 	private ServerInfoEndpoint serverInfoEndpoint;
 
@@ -53,19 +50,32 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 	@Autowired
 	private IndexDropEndpoint indexDropEndpoint;
 
+	@Autowired
+	private DocumentAddEndpoint documentAddEndpoint;
+
+	@Autowired
+	private DocumentGetByIdEndpoint documentGetByIdEndpoint;
+
 	private Map<String, AbstractRestEndpoint> endpoints;
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
 
 		endpoints = Map.of( //
+
+				// Server
 				"/api/server/info", serverInfoEndpoint, //
 				"/api/server/ping", serverPingEndpoint, //
-				"/api/index/create", indexCreateEndpoint, //
-				"/api/index/drop", indexDropEndpoint
-				);
 
-		mapper.getSerializerProvider().setNullKeySerializer(new JacksonNullKeySerializer());
+				// Index
+				"/api/index/create", indexCreateEndpoint, //
+				"/api/index/drop", indexDropEndpoint, //
+
+				// Document
+				"/api/document/add", documentAddEndpoint, //
+				"/api/document/get", documentGetByIdEndpoint //
+
+		);
 
 	}
 
@@ -89,6 +99,19 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 
 			if (endpoint != null) {
 
+				// Is http method ok?
+				if (false == req.method().equals(endpoint.getMethod())) {
+
+					var error = new RestResponse<Boolean>();
+					error.setError(true);
+					error.setErrorMessage("HTTP method to used for this endpoint is " + endpoint.getMethod());
+
+					var responseBytes = Json.writeValueAsBytes(error);
+					writeResponse(ctx, req, responseBytes, HttpResponseStatus.METHOD_NOT_ALLOWED);
+
+					return;
+				}
+
 				byte[] responseBytes = new byte[0];
 
 				try {
@@ -96,26 +119,31 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 					var respData = endpoint.service(req, dec);
 					var resp = RestResponse.of(respData);
 
-					responseBytes = mapper.writeValueAsBytes(resp);
-					
+					responseBytes = Json.writeValueAsBytes(resp);
+
 					writeResponse(ctx, req, responseBytes, HttpResponseStatus.OK);
 
-				} catch (Exception e) {
-
-					log.error("Error: " + e.getMessage());
+				} catch (MySearchException e) {
 
 					var error = new RestResponse<Boolean>();
 					error.setError(true);
 					error.setErrorMessage(e.getMessage());
 
-					try {
-						responseBytes = mapper.writeValueAsBytes(error);
-						writeResponse(ctx, req, responseBytes, HttpResponseStatus.INTERNAL_SERVER_ERROR);
-					} catch (JsonProcessingException e1) {
-						log.error("Error: ", e);
-					}
-				}
+					responseBytes = Json.writeValueAsBytes(error);
+					writeResponse(ctx, req, responseBytes, HttpResponseStatus.INTERNAL_SERVER_ERROR);
+					
+				} catch (Exception e) {
 
+					log.error("Error: ", e);
+
+					var error = new RestResponse<Boolean>();
+					error.setError(true);
+					error.setErrorMessage(e.getMessage());
+
+					responseBytes = Json.writeValueAsBytes(error);
+					writeResponse(ctx, req, responseBytes, HttpResponseStatus.INTERNAL_SERVER_ERROR);
+
+				}
 
 			} else {
 				// 404
@@ -126,13 +154,15 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 
 	}
 
-	private void writeResponse(ChannelHandlerContext ctx, HttpRequest req, byte[] responseBytes, HttpResponseStatus status) {
+	private void writeResponse(ChannelHandlerContext ctx, HttpRequest req, byte[] responseBytes,
+			HttpResponseStatus status) {
 
 		if (HttpUtil.is100ContinueExpected(req)) {
 			ctx.write(new DefaultFullHttpResponse(req.protocolVersion(), CONTINUE));
 		}
 		boolean keepAlive = HttpUtil.isKeepAlive(req);
-		FullHttpResponse response = new DefaultFullHttpResponse(req.protocolVersion(), status, Unpooled.wrappedBuffer(responseBytes));
+		FullHttpResponse response = new DefaultFullHttpResponse(req.protocolVersion(), status,
+				Unpooled.wrappedBuffer(responseBytes));
 		response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json");
 		response.headers().set(HttpHeaderNames.CONTENT_LENGTH, responseBytes.length);
 
@@ -151,12 +181,8 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 		error.setError(true);
 		error.setErrorMessage("Not found");
 
-		try {
-			var responseBytes = mapper.writeValueAsBytes(error);
-			writeResponse(ctx, req, responseBytes, HttpResponseStatus.NOT_FOUND);
-		} catch (JsonProcessingException ex) {
-			log.error("Error: ", ex);
-		}
+		var responseBytes = Json.writeValueAsBytes(error);
+		writeResponse(ctx, req, responseBytes, HttpResponseStatus.NOT_FOUND);
 
 	}
 

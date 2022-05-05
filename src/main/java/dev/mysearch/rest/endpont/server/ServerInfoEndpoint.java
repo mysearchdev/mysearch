@@ -3,6 +3,8 @@ package dev.mysearch.rest.endpont.server;
 import org.springframework.stereotype.Service;
 
 import dev.mysearch.rest.endpont.AbstractRestEndpoint;
+import dev.mysearch.rest.endpont.MySearchException;
+import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import lombok.Data;
@@ -66,7 +68,7 @@ public class ServerInfoEndpoint extends AbstractRestEndpoint<ServerInfoEndpoint.
 	}
 
 	@Override
-	public ServerInfo service(HttpRequest req, QueryStringDecoder dec) throws Exception {
+	public ServerInfo service(HttpRequest req, QueryStringDecoder dec) throws MySearchException, Exception {
 
 		var info = new ServerInfo();
 
@@ -105,6 +107,11 @@ public class ServerInfoEndpoint extends AbstractRestEndpoint<ServerInfoEndpoint.
 
 		return info;
 
+	}
+
+	@Override
+	public HttpMethod getMethod() {
+		return HttpMethod.GET;
 	}
 
 }

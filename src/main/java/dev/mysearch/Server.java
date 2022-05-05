@@ -65,7 +65,7 @@ public class Server {
 
 	}
 
-	public void close() {
+	public static void close() {
 		ctx.stop();
 		ctx.close();
 	}
