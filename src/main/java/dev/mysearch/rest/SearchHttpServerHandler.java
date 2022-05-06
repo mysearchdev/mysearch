@@ -83,7 +83,11 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 
 			try {
 
-				var endpoint = findEnpoint(req, dec);
+				final var endpointContext = new RestEndpointContext();
+				endpointContext.setReq(req);
+				endpointContext.setDec(dec);
+
+				var endpoint = findEnpoint(req, dec, endpointContext);
 
 				if (endpoint == null) {
 					error(ctx, req, "Endpoint not found", HttpResponseStatus.NOT_FOUND);
@@ -95,10 +99,6 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 							HttpResponseStatus.METHOD_NOT_ALLOWED);
 					return;
 				}
-
-				final var endpointContext = new RestEndpointContext();
-				endpointContext.setReq(req);
-				endpointContext.setDec(dec);
 
 				final var endpointResult = endpoint.service(endpointContext);
 
@@ -129,7 +129,7 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 	
 	private final Pattern DocumentAddPattern = Pattern.compile("^/[a-z0-9_]+/document$");
 
-	private AbstractRestEndpoint findEnpoint(HttpRequest req, QueryStringDecoder dec) {
+	private AbstractRestEndpoint findEnpoint(HttpRequest req, QueryStringDecoder dec, RestEndpointContext endpointContext) {
 
 		// Extract index name
 		var rawPath = dec.rawPath();
@@ -157,7 +157,7 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 		// Document add?
 		
 		{
-			var matcher = DocumentAddPattern.matcher(rawPath);
+			final var matcher = DocumentAddPattern.matcher(rawPath);
 			if (matcher.matches()) {
 				if (req.method() == HttpMethod.PUT) {
 					return this.documentAddEndpoint;
@@ -168,8 +168,11 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 		
 		// Document get by id or delete by id?
 		{
-			var matcher = DocumentGetOrDeletePattern.matcher(rawPath);
+			final var matcher = DocumentGetOrDeletePattern.matcher(rawPath);
 			if (matcher.matches()) {
+				
+				endpointContext.setDocumentId(matcher.group(1));
+				
 				if (req.method() == HttpMethod.DELETE) {
 					return this.documentDeleteByIdEndpoint;
 				} else if (req.method() == HttpMethod.GET) {

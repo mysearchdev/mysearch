@@ -27,7 +27,7 @@ public class IndexService implements InitializingBean, DisposableBean {
 	@Value("${mysearch.index.location}")
 	private String rootIndexDirectory;
 
-	private Map<String, IndexContext> indexContexts = new HashMap<>();
+	private Map<String, SearchIndex> indexContexts = new HashMap<>();
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
@@ -43,6 +43,7 @@ public class IndexService implements InitializingBean, DisposableBean {
 
 		if (false == dir.canRead() || false == dir.canWrite()) {
 			log.error("The dir is not readable or writable: " + dir);
+			System.exit(1);
 		}
 	}
 
@@ -56,6 +57,28 @@ public class IndexService implements InitializingBean, DisposableBean {
 			}
 		});
 	}
+	
+	public SearchIndex getExistingIndex(String indexName) throws Exception {
+		
+		if (this.indexContexts.containsKey(indexName)) {
+			return this.indexContexts.get(indexName);
+		}
+
+		// exists?
+		var indexDir = new File(rootIndexDirectory, indexName);
+
+		if (false == indexDir.exists()) {
+			throw new MySearchException("Index '" + indexName + "' does not exist");
+		}
+
+		var indexContext = getIndexContext(indexName, OpenMode.APPEND);
+		
+		this.indexContexts.put(indexName, indexContext);
+		
+		return indexContext;
+
+	}
+	
 
 	public void createIndex(String indexName) throws Exception {
 
@@ -69,18 +92,18 @@ public class IndexService implements InitializingBean, DisposableBean {
 		var indexContext = getIndexContext(indexName, OpenMode.CREATE);
 
 		// write meta file
-		var metafile = Path.of(indexContext.getIndexDir().toAbsolutePath().toString(), ".meta");
+		var metafile = Path.of(indexContext.getIndexDir().getAbsolutePath().toString(), ".meta");
 		Files.writeString(metafile, DateFormatUtils.SMTP_DATETIME_FORMAT.format(new Date()));
 
 	}
 
-	public IndexContext getIndexContext(String indexName, OpenMode openMode) throws IOException {
+	public SearchIndex getIndexContext(String indexName, OpenMode openMode) throws IOException, MySearchException {
 
 		var ctx = indexContexts.get(indexName);
 
 		if (ctx == null) {
 			log.info("Get index " + indexName);
-			ctx = new IndexContext(rootIndexDirectory, indexName, openMode);
+			ctx = new SearchIndex(rootIndexDirectory, indexName, openMode);
 			this.indexContexts.put(indexName, ctx);
 		}
 

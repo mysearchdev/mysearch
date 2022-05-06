@@ -12,6 +12,8 @@ public class RestEndpointContext {
 	private QueryStringDecoder dec;
 	
 	private String requestBody;
+	
+	private String documentId;
 
 	public String getIndexName() {
 		final var path = this.dec.rawPath();

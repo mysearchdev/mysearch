@@ -1,7 +1,6 @@
 package dev.mysearch.rest.endpont.document;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -27,7 +26,7 @@ public class DocumentAddEndpoint extends AbstractRestEndpoint<Boolean> {
 
 		log.debug("Add doc: " + doc);
 
-		var index = indexService.getIndexContext(ctx.getIndexName(), OpenMode.APPEND);
+		var index = indexService.getExistingIndex(ctx.getIndexName());
 
 		index.updateDocument(new Term(MySearchDocument.DOC_ID, doc.getId()), doc.toLuceneDocument());
 
