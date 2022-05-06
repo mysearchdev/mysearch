@@ -1,6 +1,7 @@
 package dev.mysearch.common;
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ public class Json {
 		mapper = new ObjectMapper();
 		mapper.getSerializerProvider().setNullKeySerializer(new JacksonNullKeySerializer());
 		mapper.setSerializationInclusion(Include.NON_NULL);
+		mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
 	}
 

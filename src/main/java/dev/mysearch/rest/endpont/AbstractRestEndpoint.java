@@ -2,18 +2,16 @@ package dev.mysearch.rest.endpont;
 
 import org.apache.commons.lang3.StringUtils;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
-
 import dev.mysearch.common.Json;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.QueryStringDecoder;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public abstract class AbstractRestEndpoint<T> {
 
-	public abstract T service(HttpRequest req, QueryStringDecoder dec) throws MySearchException, Exception;
+	public abstract T service(RestEndpointContext ctx) throws MySearchException, Exception;
 
 	public abstract HttpMethod getMethod();
 
@@ -24,10 +22,8 @@ public abstract class AbstractRestEndpoint<T> {
 					.toString(java.nio.charset.StandardCharsets.UTF_8);
 			try {
 				return Json.getMapper().readValue(json, c);
-			} catch (JsonMappingException e) {
-				e.printStackTrace();
-			} catch (JsonProcessingException e) {
-				e.printStackTrace();
+			} catch (Exception e) {
+				log.error("Error: ", e);
 			}
 		}
 		return null;
@@ -43,4 +39,5 @@ public abstract class AbstractRestEndpoint<T> {
 		}
 
 	}
+	
 }

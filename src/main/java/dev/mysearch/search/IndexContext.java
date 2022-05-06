@@ -31,14 +31,14 @@ public class IndexContext {
 
 	private boolean readerNeedsToReopen;
 
-	public IndexContext(String rootIndexDir, String indexName) throws IOException {
+	public IndexContext(String rootIndexDir, String indexName, OpenMode openMode) throws IOException {
 
 		indexDir = Path.of(rootIndexDir, indexName);
 
 		dir = FSDirectory.open(indexDir);
 		analyzer = new StandardAnalyzer();
 		iwc = new IndexWriterConfig(analyzer);
-		iwc.setOpenMode(OpenMode.CREATE_OR_APPEND);
+		iwc.setOpenMode(openMode);
 		indexWriter = new IndexWriter(dir, iwc);
 	}
 

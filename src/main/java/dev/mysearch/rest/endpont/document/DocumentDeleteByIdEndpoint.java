@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 
 import dev.mysearch.rest.endpont.AbstractRestEndpoint;
 import dev.mysearch.rest.endpont.MySearchException;
+import dev.mysearch.rest.endpont.RestEndpointContext;
 import dev.mysearch.search.IndexService;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
@@ -20,8 +21,8 @@ public class DocumentDeleteByIdEndpoint extends AbstractRestEndpoint<Boolean> {
 	private IndexService indexService;
 
 	@Override
-	public Boolean service(HttpRequest req, QueryStringDecoder dec) throws MySearchException, Exception {
-
+	public Boolean service(RestEndpointContext ctx) throws MySearchException, Exception {
+/*
 		var indexNames = dec.parameters().get("index");
 
 		if (CollectionUtils.isEmpty(indexNames)) {
@@ -39,7 +40,7 @@ public class DocumentDeleteByIdEndpoint extends AbstractRestEndpoint<Boolean> {
 		var ctx = indexService.getIndexContext(indexName);
 
 		ctx.deleteById(id);
-
+*/
 		return true;
 	}
 

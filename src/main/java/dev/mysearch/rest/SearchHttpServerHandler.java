@@ -2,7 +2,7 @@ package dev.mysearch.rest;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.CONTINUE;
 
-import java.util.Map;
+import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import dev.mysearch.common.Json;
 import dev.mysearch.rest.endpont.AbstractRestEndpoint;
 import dev.mysearch.rest.endpont.MySearchException;
+import dev.mysearch.rest.endpont.RestEndpointContext;
 import dev.mysearch.rest.endpont.document.DocumentAddEndpoint;
 import dev.mysearch.rest.endpont.document.DocumentDeleteByIdEndpoint;
 import dev.mysearch.rest.endpont.document.DocumentGetByIdEndpoint;
@@ -25,9 +26,9 @@ import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
+import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
@@ -56,32 +57,12 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 
 	@Autowired
 	private DocumentGetByIdEndpoint documentGetByIdEndpoint;
-	
+
 	@Autowired
 	private DocumentDeleteByIdEndpoint documentDeleteByIdEndpoint;
 
-	private Map<String, AbstractRestEndpoint> endpoints;
-
 	@Override
 	public void afterPropertiesSet() throws Exception {
-
-		endpoints = Map.of( //
-
-				// Server
-				"/api/server/info", serverInfoEndpoint, //
-				"/api/server/ping", serverPingEndpoint, //
-
-				// Index
-				"/api/index/create", indexCreateEndpoint, //
-				"/api/index/drop", indexDropEndpoint, //
-
-				// Document
-				"/api/document/add", documentAddEndpoint, //
-				"/api/document/get", documentGetByIdEndpoint, //
-				"/api/document/delete", documentDeleteByIdEndpoint //
-
-		);
-
 	}
 
 	@Override
@@ -94,68 +75,111 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 
 		log.debug("Msg: " + msg.toString());
 
-		if (msg instanceof HttpRequest) {
+		var req = (HttpRequest) msg;
 
-			var req = (HttpRequest) msg;
+		if (msg instanceof HttpRequest) {
 
 			var dec = new QueryStringDecoder(req.uri());
 
-			var endpoint = this.endpoints.get(dec.rawPath());
+			try {
 
-			if (endpoint != null) {
+				var endpoint = findEnpoint(req, dec);
 
-				// Is http method ok?
-				if (false == req.method().equals(endpoint.getMethod())) {
-
-					var error = new RestResponse<Boolean>();
-					error.setError(true);
-					error.setErrorMessage("HTTP method to used for this endpoint is " + endpoint.getMethod());
-
-					var responseBytes = Json.writeValueAsBytes(error);
-					writeResponse(ctx, req, responseBytes, HttpResponseStatus.METHOD_NOT_ALLOWED);
-
+				if (endpoint == null) {
+					error(ctx, req, "Endpoint not found", HttpResponseStatus.NOT_FOUND);
 					return;
 				}
 
-				byte[] responseBytes = new byte[0];
-
-				try {
-
-					var respData = endpoint.service(req, dec);
-					var resp = RestResponse.of(respData);
-
-					responseBytes = Json.writeValueAsBytes(resp);
-
-					writeResponse(ctx, req, responseBytes, HttpResponseStatus.OK);
-
-				} catch (MySearchException e) {
-
-					var error = new RestResponse<Boolean>();
-					error.setError(true);
-					error.setErrorMessage(e.getMessage());
-
-					responseBytes = Json.writeValueAsBytes(error);
-					writeResponse(ctx, req, responseBytes, HttpResponseStatus.INTERNAL_SERVER_ERROR);
-					
-				} catch (Exception e) {
-
-					log.error("Error: ", e);
-
-					var error = new RestResponse<Boolean>();
-					error.setError(true);
-					error.setErrorMessage(e.getMessage());
-
-					responseBytes = Json.writeValueAsBytes(error);
-					writeResponse(ctx, req, responseBytes, HttpResponseStatus.INTERNAL_SERVER_ERROR);
-
+				if (false == req.method().equals(endpoint.getMethod())) {
+					error(ctx, req, "HTTP method to used for this endpoint is " + endpoint.getMethod(),
+							HttpResponseStatus.METHOD_NOT_ALLOWED);
+					return;
 				}
 
-			} else {
-				// 404
-				error404(ctx, req);
+				final var endpointContext = new RestEndpointContext();
+				endpointContext.setReq(req);
+				endpointContext.setDec(dec);
+
+				final var endpointResult = endpoint.service(endpointContext);
+
+				var resp = RestResponse.of(endpointResult);
+
+				writeResponse(ctx, req, resp, HttpResponseStatus.OK);
+
+			} catch (Exception e) {
+
+				if (false == e instanceof MySearchException) {
+					log.error("Error: ", e);
+				}
+
+				error(ctx, req, e.getMessage(), HttpResponseStatus.INTERNAL_SERVER_ERROR);
+
 			}
 
+		} else {
+			// 404
+			error(ctx, req, "Endpoint not found", HttpResponseStatus.NOT_FOUND);
 		}
+
+	}
+
+	private final Pattern IndexPattern = Pattern.compile("^/[a-z0-9_]+");
+	
+	private final Pattern DocumentGetOrDeletePattern = Pattern.compile("^/[a-z0-9_]+/document/(.*)$");
+	
+	private final Pattern DocumentAddPattern = Pattern.compile("^/[a-z0-9_]+/document$");
+
+	private AbstractRestEndpoint findEnpoint(HttpRequest req, QueryStringDecoder dec) {
+
+		// Extract index name
+		var rawPath = dec.rawPath();
+
+		log.debug("Raw path: " + rawPath);
+
+		if (rawPath.equals("/_/server/info"))
+			return this.serverInfoEndpoint;
+
+		if (rawPath.equals("/_/server/ping"))
+			return this.serverPingEndpoint;
+
+		// Index operations?
+		{
+			var matcher = IndexPattern.matcher(rawPath);
+			if (matcher.matches()) {
+				if (req.method() == HttpMethod.DELETE) {
+					return this.indexDropEndpoint;
+				} else if (req.method() == HttpMethod.POST) {
+					return this.indexCreateEndpoint;
+				}
+			}
+		}
+		
+		// Document add?
+		
+		{
+			var matcher = DocumentAddPattern.matcher(rawPath);
+			if (matcher.matches()) {
+				if (req.method() == HttpMethod.PUT) {
+					return this.documentAddEndpoint;
+				}
+			}
+			
+		}
+		
+		// Document get by id or delete by id?
+		{
+			var matcher = DocumentGetOrDeletePattern.matcher(rawPath);
+			if (matcher.matches()) {
+				if (req.method() == HttpMethod.DELETE) {
+					return this.documentDeleteByIdEndpoint;
+				} else if (req.method() == HttpMethod.GET) {
+					return this.documentGetByIdEndpoint;
+				}
+			}
+			
+		}
+		
+		return null;
 
 	}
 
@@ -165,8 +189,10 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 		if (HttpUtil.is100ContinueExpected(req)) {
 			ctx.write(new DefaultFullHttpResponse(req.protocolVersion(), CONTINUE));
 		}
-		boolean keepAlive = HttpUtil.isKeepAlive(req);
-		FullHttpResponse response = new DefaultFullHttpResponse(req.protocolVersion(), status,
+
+		var keepAlive = HttpUtil.isKeepAlive(req);
+
+		var response = new DefaultFullHttpResponse(req.protocolVersion(), status,
 				Unpooled.wrappedBuffer(responseBytes));
 		response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json");
 		response.headers().set(HttpHeaderNames.CONTENT_LENGTH, responseBytes.length);
@@ -180,15 +206,17 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 
 	}
 
-	private void error404(ChannelHandlerContext ctx, HttpRequest req) {
-
-		var error = new RestResponse<Boolean>();
+	private void error(ChannelHandlerContext ctx, HttpRequest req, String message, HttpResponseStatus status) {
+		final var error = new RestResponse<Boolean>();
 		error.setError(true);
-		error.setErrorMessage("Not found");
+		error.setErrorMessage(message);
+		writeResponse(ctx, req, error, status);
+	}
 
-		var responseBytes = Json.writeValueAsBytes(error);
-		writeResponse(ctx, req, responseBytes, HttpResponseStatus.NOT_FOUND);
-
+	private void writeResponse(ChannelHandlerContext ctx, HttpRequest req, RestResponse resp,
+			HttpResponseStatus status) {
+		var responseBytes = Json.writeValueAsBytes(resp);
+		writeResponse(ctx, req, responseBytes, status);
 	}
 
 	@Override

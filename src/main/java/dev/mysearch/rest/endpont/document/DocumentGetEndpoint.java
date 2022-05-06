@@ -19,7 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Component
 @Slf4j
-public class DocumentGetByIdEndpoint extends AbstractRestEndpoint<MySearchDocument> {
+public class DocumentGetEndpoint extends AbstractRestEndpoint<MySearchDocument> {
 
 	@Autowired
 	private IndexService indexService;
@@ -32,16 +32,12 @@ public class DocumentGetByIdEndpoint extends AbstractRestEndpoint<MySearchDocume
 		if (CollectionUtils.isEmpty(indexNames)) {
 			throw new MySearchException("Please, specify a 'index' parameter (index name)");
 		}
-		var ids = dec.parameters().get("id");
-
-		if (CollectionUtils.isEmpty(ids)) {
-			throw new MySearchException("Please, specify an 'id' parameter");
-		}
 
 		var indexName = indexNames.get(0);
-		var id = ids.get(0);
 
 		var ctx = indexService.getIndexContext(indexName);
+		
+		var id="";
 
 		var term = new Term(MySearchDocument.DOC_ID, id);
 		var q = new TermQuery(term);

@@ -10,6 +10,7 @@ import java.util.Map;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.time.DateFormatUtils;
+import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Value;
@@ -65,7 +66,7 @@ public class IndexService implements InitializingBean, DisposableBean {
 			throw new MySearchException("Index '" + indexName + "' already exists");
 		}
 
-		var indexContext = getIndexContext(indexName);
+		var indexContext = getIndexContext(indexName, OpenMode.CREATE);
 
 		// write meta file
 		var metafile = Path.of(indexContext.getIndexDir().toAbsolutePath().toString(), ".meta");
@@ -73,13 +74,13 @@ public class IndexService implements InitializingBean, DisposableBean {
 
 	}
 
-	public IndexContext getIndexContext(String indexName) throws IOException {
+	public IndexContext getIndexContext(String indexName, OpenMode openMode) throws IOException {
 
 		var ctx = indexContexts.get(indexName);
 
 		if (ctx == null) {
 			log.info("Get index " + indexName);
-			ctx = new IndexContext(rootIndexDirectory, indexName);
+			ctx = new IndexContext(rootIndexDirectory, indexName, openMode);
 			this.indexContexts.put(indexName, ctx);
 		}
 
@@ -95,9 +96,10 @@ public class IndexService implements InitializingBean, DisposableBean {
 			throw new MySearchException("Index '" + indexName + "' does not exist");
 		}
 
-		var ctx = getIndexContext(indexName);
-		ctx.close();
-		indexContexts.remove(indexName);
+		if (indexContexts.containsKey(indexName)) {
+			indexContexts.get(indexName).close();
+			indexContexts.remove(indexName);
+		}
 
 		try {
 			FileUtils.forceDelete(indexDir);
