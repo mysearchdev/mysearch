@@ -12,6 +12,7 @@ import dev.mysearch.common.Json;
 import dev.mysearch.rest.endpont.AbstractRestEndpoint;
 import dev.mysearch.rest.endpont.MySearchException;
 import dev.mysearch.rest.endpont.document.DocumentAddEndpoint;
+import dev.mysearch.rest.endpont.document.DocumentDeleteByIdEndpoint;
 import dev.mysearch.rest.endpont.document.DocumentGetByIdEndpoint;
 import dev.mysearch.rest.endpont.index.IndexCreateEndpoint;
 import dev.mysearch.rest.endpont.index.IndexDropEndpoint;
@@ -55,6 +56,9 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 
 	@Autowired
 	private DocumentGetByIdEndpoint documentGetByIdEndpoint;
+	
+	@Autowired
+	private DocumentDeleteByIdEndpoint documentDeleteByIdEndpoint;
 
 	private Map<String, AbstractRestEndpoint> endpoints;
 
@@ -73,7 +77,8 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 
 				// Document
 				"/api/document/add", documentAddEndpoint, //
-				"/api/document/get", documentGetByIdEndpoint //
+				"/api/document/get", documentGetByIdEndpoint, //
+				"/api/document/delete", documentDeleteByIdEndpoint //
 
 		);
 

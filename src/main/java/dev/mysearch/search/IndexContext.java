@@ -12,8 +12,10 @@ import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.FSDirectory;
 
+import dev.mysearch.model.MySearchDocument;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -84,6 +86,12 @@ public class IndexContext {
 
 	public Path getIndexDir() {
 		return this.indexDir;
+	}
+
+	public void deleteById(String id) throws IOException {
+		var term = new Term(MySearchDocument.DOC_ID, id);
+		this.indexWriter.deleteDocuments(term);
+		commit();
 	}
 
 }
