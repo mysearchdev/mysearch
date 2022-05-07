@@ -36,7 +36,7 @@ public class DocumentGetByIdEndpoint extends AbstractRestEndpoint<MySearchDocume
 
 			var doc = searcher.doc(docs.scoreDocs[0].doc);
 
-			return MySearchDocument.from(doc, ctx.getDocumentId());
+			return MySearchDocument.from(doc, ctx.getDocumentId(), null);
 
 		}
 

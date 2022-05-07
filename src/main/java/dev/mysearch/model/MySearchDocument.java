@@ -25,6 +25,8 @@ public class MySearchDocument {
 	public static final String DOC_ID = "___id";
 
 	private String id;
+	
+	private Float score;
 
 	private Set<Attribute> attributes = new HashSet<>();
 
@@ -82,9 +84,10 @@ public class MySearchDocument {
 		return doc;
 	}
 
-	public static MySearchDocument from(Document doc, String id) {
+	public static MySearchDocument from(Document doc, String id, Float score) {
 
 		MySearchDocument m = new MySearchDocument(id);
+		m.setScore(score);
 
 		doc.getFields().forEach(f -> {
 			if (false == f.name().equals(MySearchDocument.DOC_ID)) {

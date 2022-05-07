@@ -5,7 +5,8 @@ import java.io.IOException;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexWriter;
@@ -23,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class SearchIndex {
 
-	private StandardAnalyzer analyzer;
+	private Analyzer analyzer;
 	private IndexWriterConfig iwc;
 	private File indexDir;
 	private FSDirectory dir;
@@ -39,7 +40,9 @@ public class SearchIndex {
 		try {
 
 			dir = FSDirectory.open(indexDir.toPath());
-			analyzer = new StandardAnalyzer();
+
+			analyzer = new EnglishAnalyzer();
+
 			iwc = new IndexWriterConfig(analyzer);
 			iwc.setOpenMode(openMode);
 			indexWriter = new IndexWriter(dir, iwc);
@@ -103,6 +106,10 @@ public class SearchIndex {
 		var term = new Term(MySearchDocument.DOC_ID, id);
 		this.indexWriter.deleteDocuments(term);
 		commit();
+	}
+
+	public Analyzer getAnalyzer() {
+		return this.analyzer;
 	}
 
 }

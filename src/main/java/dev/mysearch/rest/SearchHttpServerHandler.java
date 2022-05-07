@@ -15,6 +15,7 @@ import dev.mysearch.rest.endpont.RestEndpointContext;
 import dev.mysearch.rest.endpont.document.DocumentAddEndpoint;
 import dev.mysearch.rest.endpont.document.DocumentDeleteByIdEndpoint;
 import dev.mysearch.rest.endpont.document.DocumentGetByIdEndpoint;
+import dev.mysearch.rest.endpont.document.DocumentsSearchEndpoint;
 import dev.mysearch.rest.endpont.index.IndexCreateEndpoint;
 import dev.mysearch.rest.endpont.index.IndexDropEndpoint;
 import dev.mysearch.rest.endpont.server.ServerInfoEndpoint;
@@ -60,6 +61,9 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 
 	@Autowired
 	private DocumentDeleteByIdEndpoint documentDeleteByIdEndpoint;
+	
+	@Autowired
+	private DocumentsSearchEndpoint documentsSearchEndpoint;
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
@@ -72,8 +76,6 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 
 	@Override
 	protected void channelRead0(ChannelHandlerContext ctx, Object msg) {
-
-		log.debug("Msg: " + msg.toString());
 
 		var req = (HttpRequest) msg;
 
@@ -128,6 +130,8 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 	private final Pattern DocumentGetOrDeletePattern = Pattern.compile("^/[a-z0-9_]+/document/(.*)$");
 	
 	private final Pattern DocumentAddPattern = Pattern.compile("^/[a-z0-9_]+/document$");
+	
+	private final Pattern DocumentSearchPattern = Pattern.compile("^/[a-z0-9_]+/search$");
 
 	private AbstractRestEndpoint findEnpoint(HttpRequest req, QueryStringDecoder dec, RestEndpointContext endpointContext) {
 
@@ -141,6 +145,14 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 
 		if (rawPath.equals("/_/server/ping"))
 			return this.serverPingEndpoint;
+		
+		// Search documents
+		{
+			var matcher = DocumentSearchPattern.matcher(rawPath);
+			if (matcher.matches()) {
+				return this.documentsSearchEndpoint;
+			}
+		}
 
 		// Index operations?
 		{
