@@ -16,13 +16,13 @@ import lombok.extern.slf4j.Slf4j;
 
 @Component
 @Slf4j
-public class DocumentGetByIdEndpoint extends AbstractRestEndpoint<MySearchDocument> {
+public class DocumentGetByIdEndpoint extends AbstractRestEndpoint<String> {
 
 	@Autowired
 	private IndexService indexService;
 
 	@Override
-	public MySearchDocument service(RestEndpointContext ctx) throws MySearchException, Exception {
+	public String service(RestEndpointContext ctx) throws MySearchException, Exception {
 
 		var index = indexService.getExistingIndex(ctx.getIndexName());
 
@@ -36,7 +36,7 @@ public class DocumentGetByIdEndpoint extends AbstractRestEndpoint<MySearchDocume
 
 			var doc = searcher.doc(docs.scoreDocs[0].doc);
 
-			return MySearchDocument.from(doc, ctx.getDocumentId(), null);
+			return doc.getField(MySearchDocument.TEXT_ID).stringValue();
 
 		}
 

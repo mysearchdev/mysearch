@@ -1,7 +1,9 @@
 package dev.mysearch.search;
 
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
+import java.util.Properties;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
@@ -30,6 +32,7 @@ public class SearchIndex {
 	private FSDirectory dir;
 	private IndexWriter indexWriter;
 	private DirectoryReader reader;
+	private Properties properties;
 
 	private boolean readerNeedsToReopen;
 
@@ -46,6 +49,20 @@ public class SearchIndex {
 			iwc = new IndexWriterConfig(analyzer);
 			iwc.setOpenMode(openMode);
 			indexWriter = new IndexWriter(dir, iwc);
+
+			// load .meta properties file
+			var meta = new File(dir.getDirectory().toFile(), ".meta");
+			if (meta.exists()) {
+				try (var fr = new FileReader(meta)) {
+					this.properties = new Properties();
+					this.properties.load(fr);
+					log.debug("Load index .meta: " + this.properties);
+				}
+			}
+			
+			if (openMode == OpenMode.CREATE) {
+				indexWriter.commit();
+			}
 
 		} catch (IndexNotFoundException e) {
 			FileUtils.deleteQuietly(indexDir);
@@ -110,6 +127,14 @@ public class SearchIndex {
 
 	public Analyzer getAnalyzer() {
 		return this.analyzer;
+	}
+
+	public void setProperties(Properties props) {
+		this.properties = props;
+	}
+
+	public Properties getProperties() {
+		return properties;
 	}
 
 }

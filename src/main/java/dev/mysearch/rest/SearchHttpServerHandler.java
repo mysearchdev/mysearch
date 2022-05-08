@@ -18,6 +18,7 @@ import dev.mysearch.rest.endpont.document.DocumentGetByIdEndpoint;
 import dev.mysearch.rest.endpont.document.DocumentsSearchEndpoint;
 import dev.mysearch.rest.endpont.index.IndexCreateEndpoint;
 import dev.mysearch.rest.endpont.index.IndexDropEndpoint;
+import dev.mysearch.rest.endpont.index.IndexGetEndpoint;
 import dev.mysearch.rest.endpont.server.ServerInfoEndpoint;
 import dev.mysearch.rest.endpont.server.ServerPingEndpoint;
 import dev.mysearch.rest.model.RestResponse;
@@ -61,9 +62,12 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 
 	@Autowired
 	private DocumentDeleteByIdEndpoint documentDeleteByIdEndpoint;
-	
+
 	@Autowired
 	private DocumentsSearchEndpoint documentsSearchEndpoint;
+
+	@Autowired
+	private IndexGetEndpoint indexGetEndpoint;
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
@@ -126,14 +130,13 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 	}
 
 	private final Pattern IndexPattern = Pattern.compile("^/[a-z0-9_]+");
-	
-	private final Pattern DocumentGetOrDeletePattern = Pattern.compile("^/[a-z0-9_]+/document/(.*)$");
-	
-	private final Pattern DocumentAddPattern = Pattern.compile("^/[a-z0-9_]+/document$");
-	
+
+	private final Pattern DocumentPattern = Pattern.compile("^/[a-z0-9_]+/document/(.*)$");
+
 	private final Pattern DocumentSearchPattern = Pattern.compile("^/[a-z0-9_]+/search$");
 
-	private AbstractRestEndpoint findEnpoint(HttpRequest req, QueryStringDecoder dec, RestEndpointContext endpointContext) {
+	private AbstractRestEndpoint findEnpoint(HttpRequest req, QueryStringDecoder dec,
+			RestEndpointContext endpointContext) {
 
 		// Extract index name
 		var rawPath = dec.rawPath();
@@ -145,7 +148,7 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 
 		if (rawPath.equals("/_/server/ping"))
 			return this.serverPingEndpoint;
-		
+
 		// Search documents
 		{
 			var matcher = DocumentSearchPattern.matcher(rawPath);
@@ -162,38 +165,30 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 					return this.indexDropEndpoint;
 				} else if (req.method() == HttpMethod.POST) {
 					return this.indexCreateEndpoint;
+				} else if (req.method() == HttpMethod.GET) {
+					return this.indexGetEndpoint;
 				}
 			}
 		}
-		
-		// Document add?
-		
+
+		// Document add, get by id or delete by id?
 		{
-			final var matcher = DocumentAddPattern.matcher(rawPath);
+			final var matcher = DocumentPattern.matcher(rawPath);
 			if (matcher.matches()) {
-				if (req.method() == HttpMethod.PUT) {
-					return this.documentAddEndpoint;
-				}
-			}
-			
-		}
-		
-		// Document get by id or delete by id?
-		{
-			final var matcher = DocumentGetOrDeletePattern.matcher(rawPath);
-			if (matcher.matches()) {
-				
+
 				endpointContext.setDocumentId(matcher.group(1));
-				
+
 				if (req.method() == HttpMethod.DELETE) {
 					return this.documentDeleteByIdEndpoint;
 				} else if (req.method() == HttpMethod.GET) {
 					return this.documentGetByIdEndpoint;
+				} else if (req.method() == HttpMethod.PUT) {
+					return this.documentAddEndpoint;
 				}
 			}
-			
+
 		}
-		
+
 		return null;
 
 	}

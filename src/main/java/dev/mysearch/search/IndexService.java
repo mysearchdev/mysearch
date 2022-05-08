@@ -1,15 +1,14 @@
 package dev.mysearch.search;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Date;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Properties;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang3.time.DateFormatUtils;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
@@ -18,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import dev.mysearch.model.MySearchDocument;
 import dev.mysearch.rest.endpont.MySearchException;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -27,7 +27,21 @@ public class IndexService implements InitializingBean, DisposableBean {
 	@Value("${mysearch.index.location}")
 	private String rootIndexDirectory;
 
+	@Data
+	public static class IndexInfo {
+		private String index;
+		private String directory;
+		private Properties properties;
+		private long freeSpace;
+		private long totalSpace;
+		private long usableSpace;
+	}
+
 	private Map<String, SearchIndex> indexContexts = new HashMap<>();
+
+	public void setRootIndexDirectory(String rootIndexDirectory) {
+		this.rootIndexDirectory = rootIndexDirectory;
+	}
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
@@ -57,9 +71,9 @@ public class IndexService implements InitializingBean, DisposableBean {
 			}
 		});
 	}
-	
+
 	public SearchIndex getExistingIndex(String indexName) throws Exception {
-		
+
 		if (this.indexContexts.containsKey(indexName)) {
 			return this.indexContexts.get(indexName);
 		}
@@ -72,15 +86,37 @@ public class IndexService implements InitializingBean, DisposableBean {
 		}
 
 		var indexContext = getIndexContext(indexName, OpenMode.APPEND);
-		
+
 		this.indexContexts.put(indexName, indexContext);
-		
+
 		return indexContext;
 
 	}
-	
 
-	public void createIndex(String indexName) throws Exception {
+	public boolean doesIndexExists(String indexName) {
+
+		// Dir exists?
+		var indexDir = new File(rootIndexDirectory, indexName);
+
+		// If no Dir, obviously no index
+		if (false == indexDir.exists()) {
+			log.debug("No index dir at " + indexDir);
+			return false;
+		}
+
+		// If Dir is there, check if the index actually exists and can be opened
+		try {
+			var ctx = new SearchIndex(rootIndexDirectory, indexName, OpenMode.APPEND);
+		} catch (Exception e) {
+			log.debug("Can't open index at " + indexDir);
+			return false;
+		}
+
+		return true;
+
+	}
+
+	public void createNewIndex(String indexName, String lang) throws Exception {
 
 		// exists?
 		var indexDir = new File(rootIndexDirectory, indexName);
@@ -92,8 +128,15 @@ public class IndexService implements InitializingBean, DisposableBean {
 		var indexContext = getIndexContext(indexName, OpenMode.CREATE);
 
 		// write meta file
-		var metafile = Path.of(indexContext.getIndexDir().getAbsolutePath().toString(), ".meta");
-		Files.writeString(metafile, DateFormatUtils.SMTP_DATETIME_FORMAT.format(new Date()));
+		var props = new Properties();
+		props.put("time", String.valueOf(System.currentTimeMillis()));
+		props.put("locale", Locale.getDefault().getDisplayName());
+		props.put("lang", lang);
+
+		try (var writer = new FileWriter(new File(indexContext.getIndexDir().getAbsolutePath().toString(), ".meta"))) {
+			props.store(writer, "");
+		}
+		indexContext.setProperties(props);
 
 	}
 
@@ -135,6 +178,29 @@ public class IndexService implements InitializingBean, DisposableBean {
 	}
 
 	public void add(MySearchDocument doc, String index) {
+
+	}
+
+	public IndexInfo getIndexInfo(String indexName) throws Exception {
+
+		// exists?
+		var indexDir = new File(rootIndexDirectory, indexName);
+
+		if (false == indexDir.exists()) {
+			throw new MySearchException("Index '" + indexName + "' does not exist");
+		}
+
+		var index = this.getExistingIndex(indexName);
+
+		var info = new IndexInfo();
+		info.setIndex(indexName);
+		info.setProperties(index.getProperties());
+		info.setDirectory(index.getIndexDir().getAbsolutePath());
+		info.setFreeSpace(index.getIndexDir().getFreeSpace());
+		info.setTotalSpace(index.getIndexDir().getTotalSpace());
+		info.setUsableSpace(index.getIndexDir().getUsableSpace());
+
+		return info;
 
 	}
 
