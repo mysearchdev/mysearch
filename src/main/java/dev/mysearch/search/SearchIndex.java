@@ -8,7 +8,6 @@ import java.util.Properties;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexWriter;
@@ -36,19 +35,13 @@ public class SearchIndex {
 
 	private boolean readerNeedsToReopen;
 
-	public SearchIndex(String rootIndexDir, String indexName, OpenMode openMode) throws MySearchException {
+	public SearchIndex(String rootIndexDir, String indexName, OpenMode openMode, Lang lang) throws MySearchException {
 
 		indexDir = new File(rootIndexDir, indexName);
 
 		try {
 
 			dir = FSDirectory.open(indexDir.toPath());
-
-			analyzer = new EnglishAnalyzer();
-
-			iwc = new IndexWriterConfig(analyzer);
-			iwc.setOpenMode(openMode);
-			indexWriter = new IndexWriter(dir, iwc);
 
 			// load .meta properties file
 			var meta = new File(dir.getDirectory().toFile(), ".meta");
@@ -59,7 +52,18 @@ public class SearchIndex {
 					log.debug("Load index .meta: " + this.properties);
 				}
 			}
-			
+
+			if (properties != null) {
+				analyzer = LangAnalyzer.get(Lang.valueOf(properties.get("lang").toString()));
+			} else {
+				analyzer = LangAnalyzer.get(lang);
+			}
+
+			iwc = new IndexWriterConfig(analyzer);
+			iwc.setOpenMode(openMode);
+
+			indexWriter = new IndexWriter(dir, iwc);
+
 			if (openMode == OpenMode.CREATE) {
 				indexWriter.commit();
 			}
@@ -101,7 +105,7 @@ public class SearchIndex {
 		log.debug("Closed index: " + dir);
 		IOUtils.closeQuietly(reader);
 		IOUtils.closeQuietly(indexWriter);
-		IOUtils.closeQuietly(analyzer);
+//		IOUtils.closeQuietly(analyzer);
 		IOUtils.closeQuietly(dir);
 	}
 

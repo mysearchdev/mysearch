@@ -7,6 +7,7 @@ import dev.mysearch.rest.endpont.AbstractRestEndpoint;
 import dev.mysearch.rest.endpont.MySearchException;
 import dev.mysearch.rest.endpont.RestEndpointContext;
 import dev.mysearch.search.IndexService;
+import dev.mysearch.search.Lang;
 import io.netty.handler.codec.http.HttpMethod;
 import lombok.extern.slf4j.Slf4j;
 
@@ -27,7 +28,7 @@ public class IndexCreateEndpoint extends AbstractRestEndpoint<Boolean> {
 
 		var lang = ctx.getParameter(ParamLang, English);
 
-		indexService.createNewIndex(ctx.getIndexName(), lang);
+		indexService.createNewIndex(ctx.getIndexName(), Lang.valueOf(lang));
 
 		return true;
 	}

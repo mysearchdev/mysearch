@@ -1,8 +1,15 @@
 package dev.mysearch;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.charset.StandardCharsets;
+import java.rmi.registry.LocateRegistry;
+
+import javax.management.MBeanServer;
+import javax.management.remote.JMXConnectorServer;
+import javax.management.remote.JMXConnectorServerFactory;
+import javax.management.remote.JMXServiceURL;
 
 import org.apache.commons.io.IOUtils;
 import org.springframework.context.support.ClassPathXmlApplicationContext;
@@ -35,6 +42,8 @@ public class Server {
 	 * 
 	 */
 	public static void main(String[] args) throws Exception {
+		
+		createJmxConnectorServer();
 
 		System.out.println("PID: " + ProcessHandle.current().pid());
 
@@ -63,6 +72,14 @@ public class Server {
 		ctx = new ClassPathXmlApplicationContext("/spring-context.xml");
 		ctx.start();
 
+	}
+	
+	private static void createJmxConnectorServer() throws IOException {
+	    LocateRegistry.createRegistry(1234);
+	    MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+	    JMXServiceURL url = new JMXServiceURL("service:jmx:rmi://localhost/jndi/rmi://localhost:1234/jmxrmi");
+	    JMXConnectorServer svr = JMXConnectorServerFactory.newJMXConnectorServer(url, null, mbs);
+	    svr.start();
 	}
 
 	public static void close() {

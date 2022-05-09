@@ -30,6 +30,7 @@ public class IndexService implements InitializingBean, DisposableBean {
 	@Data
 	public static class IndexInfo {
 		private String index;
+		private int documents;
 		private String directory;
 		private Properties properties;
 		private long freeSpace;
@@ -85,7 +86,7 @@ public class IndexService implements InitializingBean, DisposableBean {
 			throw new MySearchException("Index '" + indexName + "' does not exist");
 		}
 
-		var indexContext = getIndexContext(indexName, OpenMode.APPEND);
+		var indexContext = getIndexContext(indexName, OpenMode.APPEND, Lang.en);
 
 		this.indexContexts.put(indexName, indexContext);
 
@@ -105,8 +106,14 @@ public class IndexService implements InitializingBean, DisposableBean {
 		}
 
 		// If Dir is there, check if the index actually exists and can be opened
+		
+		if (this.indexContexts.containsKey(indexName)) {
+			return true;
+		}
+		
 		try {
-			var ctx = new SearchIndex(rootIndexDirectory, indexName, OpenMode.APPEND);
+			var ctx = new SearchIndex(rootIndexDirectory, indexName, OpenMode.APPEND, Lang.en);
+			ctx.close();
 		} catch (Exception e) {
 			log.debug("Can't open index at " + indexDir);
 			return false;
@@ -116,7 +123,7 @@ public class IndexService implements InitializingBean, DisposableBean {
 
 	}
 
-	public void createNewIndex(String indexName, String lang) throws Exception {
+	public SearchIndex createNewIndex(String indexName, Lang lang) throws Exception {
 
 		// exists?
 		var indexDir = new File(rootIndexDirectory, indexName);
@@ -125,28 +132,30 @@ public class IndexService implements InitializingBean, DisposableBean {
 			throw new MySearchException("Index '" + indexName + "' already exists");
 		}
 
-		var indexContext = getIndexContext(indexName, OpenMode.CREATE);
+		var indexContext = getIndexContext(indexName, OpenMode.CREATE, lang);
 
 		// write meta file
 		var props = new Properties();
 		props.put("time", String.valueOf(System.currentTimeMillis()));
 		props.put("locale", Locale.getDefault().getDisplayName());
-		props.put("lang", lang);
+		props.put("lang", lang.toString());
 
 		try (var writer = new FileWriter(new File(indexContext.getIndexDir().getAbsolutePath().toString(), ".meta"))) {
 			props.store(writer, "");
 		}
 		indexContext.setProperties(props);
+		
+		return indexContext;
 
 	}
 
-	public SearchIndex getIndexContext(String indexName, OpenMode openMode) throws IOException, MySearchException {
+	private SearchIndex getIndexContext(String indexName, OpenMode openMode, Lang lang) throws IOException, MySearchException {
 
 		var ctx = indexContexts.get(indexName);
 
 		if (ctx == null) {
 			log.info("Get index " + indexName);
-			ctx = new SearchIndex(rootIndexDirectory, indexName, openMode);
+			ctx = new SearchIndex(rootIndexDirectory, indexName, openMode, lang);
 			this.indexContexts.put(indexName, ctx);
 		}
 
@@ -199,6 +208,7 @@ public class IndexService implements InitializingBean, DisposableBean {
 		info.setFreeSpace(index.getIndexDir().getFreeSpace());
 		info.setTotalSpace(index.getIndexDir().getTotalSpace());
 		info.setUsableSpace(index.getIndexDir().getUsableSpace());
+		info.setDocuments(index.getReader().numDocs());
 
 		return info;
 

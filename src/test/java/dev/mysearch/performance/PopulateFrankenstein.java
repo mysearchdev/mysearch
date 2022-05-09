@@ -9,6 +9,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
@@ -34,30 +35,43 @@ public class PopulateFrankenstein {
 				sb.append(IOUtils.LINE_SEPARATOR);
 			}
 		});
-		
+
 		log.debug("Texts: " + texts.size());
 
-		var httpClient = HttpClient.newHttpClient();
-		
-		int index=  1;
+		var httpClient = HttpClient.newBuilder().build();
+
+		int index = 1;
+
+		var ex = Executors.newFixedThreadPool(4);
+
 		for (var p : texts) {
 
-			var st=System.currentTimeMillis();
-			
-			HttpRequest request = HttpRequest.newBuilder()
-					  .uri(new URI("http://localhost:8080/test/document/"+index))
-					  .headers("Content-Type", "text/plain;charset=UTF-8")
-					  .PUT(HttpRequest.BodyPublishers.ofString(p))
-					  .build();
-			
-			httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-			
-			var et=System.currentTimeMillis();
-			
-			log.debug("Sent: " + (et-st) + " ms.");
-			
+			final var request = HttpRequest.newBuilder().uri(new URI("http://localhost:8080/test/document/" + index))
+					.headers("Content-Type", "text/plain;charset=UTF-8").PUT(HttpRequest.BodyPublishers.ofString(p))
+					.build();
+
+			ex.submit(() -> {
+				try {
+
+					var st = System.currentTimeMillis();
+
+					httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+					var et = System.currentTimeMillis();
+
+					log.debug("Sent: " + (et - st) + " ms.");
+
+				} catch (Exception e) {
+					log.error("Error: ", e);
+				}
+			});
+
 			index++;
 		}
+
+		ex.shutdown();
+
+		Thread.currentThread().sleep(10000);
 
 	}
 

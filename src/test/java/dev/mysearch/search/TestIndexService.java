@@ -1,6 +1,8 @@
 package dev.mysearch.search;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
@@ -44,6 +46,15 @@ public class TestIndexService {
 		FileUtils.deleteDirectory(folder);
 		assertFalse(test);
 	}
+	
+	@Test
+	public void checkIndexCreated() throws Exception {
+		var index = indexService.createNewIndex("test-index", Lang.en);
+		assertNotNull(index);
+		assertNotNull(index.getIndexDir());
+		assertTrue(index.getIndexDir().exists());
+		assertTrue(indexService.doesIndexExists("test-index"));
+	}	
 	
 	@After
 	public void close() throws Exception {
