@@ -3,11 +3,15 @@ package dev.mysearch.search;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Properties;
+import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexWriter;
@@ -20,10 +24,17 @@ import org.apache.lucene.store.FSDirectory;
 
 import dev.mysearch.model.MySearchDocument;
 import dev.mysearch.rest.endpont.MySearchException;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class SearchIndex {
+
+	@Data
+	public static class SubmittedDocument {
+		private Document doc;
+		private String id;
+	}
 
 	private Analyzer analyzer;
 	private IndexWriterConfig iwc;
@@ -32,8 +43,25 @@ public class SearchIndex {
 	private IndexWriter indexWriter;
 	private DirectoryReader reader;
 	private Properties properties;
+	private Set<SubmittedDocument> submittedDocuments = Collections.synchronizedSet(new HashSet<>());
 
 	private boolean readerNeedsToReopen;
+
+	public Set<SubmittedDocument> getSubmittedDocuments() {
+		return submittedDocuments;
+	}
+
+	public void clearSubmittedDocuments() {
+		submittedDocuments.clear();
+	}
+
+	public void submitDocument(SubmittedDocument doc) {
+		this.submittedDocuments.add(doc);
+	}
+
+	public int countSubmittedDocuments() {
+		return this.submittedDocuments.size();
+	}
 
 	public SearchIndex(String rootIndexDir, String indexName, OpenMode openMode, Lang lang) throws MySearchException {
 

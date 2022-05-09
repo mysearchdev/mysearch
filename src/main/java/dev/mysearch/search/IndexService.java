@@ -3,20 +3,31 @@ package dev.mysearch.search;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.time.DateFormatUtils;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import dev.mysearch.model.MySearchDocument;
 import dev.mysearch.rest.endpont.MySearchException;
+import dev.mysearch.search.SearchIndex.SubmittedDocument;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -106,11 +117,11 @@ public class IndexService implements InitializingBean, DisposableBean {
 		}
 
 		// If Dir is there, check if the index actually exists and can be opened
-		
+
 		if (this.indexContexts.containsKey(indexName)) {
 			return true;
 		}
-		
+
 		try {
 			var ctx = new SearchIndex(rootIndexDirectory, indexName, OpenMode.APPEND, Lang.en);
 			ctx.close();
@@ -144,12 +155,13 @@ public class IndexService implements InitializingBean, DisposableBean {
 			props.store(writer, "");
 		}
 		indexContext.setProperties(props);
-		
+
 		return indexContext;
 
 	}
 
-	private SearchIndex getIndexContext(String indexName, OpenMode openMode, Lang lang) throws IOException, MySearchException {
+	private SearchIndex getIndexContext(String indexName, OpenMode openMode, Lang lang)
+			throws IOException, MySearchException {
 
 		var ctx = indexContexts.get(indexName);
 
@@ -211,6 +223,86 @@ public class IndexService implements InitializingBean, DisposableBean {
 		info.setDocuments(index.getReader().numDocs());
 
 		return info;
+
+	}
+
+	public void addToIndex(String indexName, String id, String text, boolean commit) throws Exception, IOException {
+
+		var index = this.getExistingIndex(indexName);
+
+		var doc = toDocument(indexName, id, text);
+
+		index.updateDocument(new Term(MySearchDocument.DOC_ID, id), doc);
+
+		if (commit) {
+			index.commit();
+		}
+
+	}
+
+	private Document toDocument(String indexName, String documentId, String text) {
+
+		var doc = new Document();
+
+		var f = new StringField(MySearchDocument.DOC_ID, documentId, Field.Store.YES);
+		doc.add(f);
+
+		doc.add(new TextField(MySearchDocument.TEXT_ID, text, Field.Store.YES));
+
+		var date = DateFormatUtils.ISO_8601_EXTENDED_DATETIME_TIME_ZONE_FORMAT.format(new Date());
+		doc.add(new StringField(MySearchDocument.DATE_ID, date, Field.Store.YES));
+
+		return doc;
+	}
+
+	public void submitToIndexAsync(String indexName, String documentId, String text) throws Exception, IOException {
+		final var index = this.getExistingIndex(indexName);
+		final var doc = toDocument(indexName, documentId, text);
+
+		var submission = new SubmittedDocument();
+		submission.setDoc(doc);
+		submission.setId(documentId);
+
+		index.submitDocument(submission);
+	}
+
+	@Scheduled(fixedDelay = 1000)
+	public void sendSubmittedToIndex() {
+
+		this.indexContexts.keySet().parallelStream().forEach(indexName -> {
+
+			var index = this.indexContexts.get(indexName);
+
+			if (index.countSubmittedDocuments() > 0) {
+
+				Set<SearchIndex.SubmittedDocument> copy = null;
+
+				synchronized (index.getSubmittedDocuments()) {
+
+					copy = Set.copyOf(index.getSubmittedDocuments());
+
+					index.clearSubmittedDocuments();
+
+				}
+
+				log.debug("Submit docs [" + copy.size() + "] to index [" + indexName + "]");
+
+				copy.forEach(doc -> {
+					try {
+						index.updateDocument(new Term(MySearchDocument.DOC_ID, doc.getId()), doc.getDoc());
+					} catch (IOException e) {
+						log.error("Error: ", e);
+					}
+				});
+
+				try {
+					index.commit();
+				} catch (IOException e) {
+					log.error("Error: ", e);
+				}
+			}
+
+		});
 
 	}
 

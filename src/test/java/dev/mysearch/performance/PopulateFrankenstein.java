@@ -44,29 +44,34 @@ public class PopulateFrankenstein {
 
 		var ex = Executors.newFixedThreadPool(4);
 
-		for (var p : texts) {
+		for (var i = 0; i < 1000; i++) {
 
-			final var request = HttpRequest.newBuilder().uri(new URI("http://localhost:8080/test/document/" + index))
-					.headers("Content-Type", "text/plain;charset=UTF-8").PUT(HttpRequest.BodyPublishers.ofString(p))
-					.build();
+			for (var p : texts) {
 
-			ex.submit(() -> {
-				try {
+				final var request = HttpRequest.newBuilder()
+						.uri(new URI("http://localhost:8080/test/document/" + index))
+						.headers("Content-Type", "text/plain;charset=UTF-8").PUT(HttpRequest.BodyPublishers.ofString(p))
+						.build();
 
-					var st = System.currentTimeMillis();
+				ex.submit(() -> {
+					try {
 
-					httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+						var st = System.currentTimeMillis();
 
-					var et = System.currentTimeMillis();
+						httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-					log.debug("Sent: " + (et - st) + " ms.");
+						var et = System.currentTimeMillis();
 
-				} catch (Exception e) {
-					log.error("Error: ", e);
-				}
-			});
+						log.debug("Sent: " + (et - st) + " ms.");
 
-			index++;
+					} catch (Exception e) {
+						log.error("Error: ", e);
+					}
+				});
+
+				index++;
+			}
+
 		}
 
 		ex.shutdown();

@@ -13,6 +13,7 @@ import javax.management.remote.JMXServiceURL;
 
 import org.apache.commons.io.IOUtils;
 import org.springframework.context.support.ClassPathXmlApplicationContext;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
