@@ -1,10 +1,8 @@
 package dev.mysearch.rest.endpont.document;
 
-import org.apache.lucene.index.Term;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import dev.mysearch.model.MySearchDocument;
 import dev.mysearch.rest.endpont.AbstractRestEndpoint;
 import dev.mysearch.rest.endpont.MySearchException;
 import dev.mysearch.rest.endpont.RestEndpointContext;
@@ -22,15 +20,11 @@ public class DocumentAddEndpoint extends AbstractRestEndpoint<Boolean> {
 	@Override
 	public Boolean service(RestEndpointContext ctx) throws MySearchException, Exception {
 
-		MySearchDocument doc = getRequestBodyAsObject(ctx.getReq(), MySearchDocument.class);
+		var text = getRequestBody(ctx.getReq());
 
-		log.debug("Add doc: " + doc);
+		log.debug("Add doc: " + text);
 
-		var index = indexService.getExistingIndex(ctx.getIndexName());
-
-		index.updateDocument(new Term(MySearchDocument.DOC_ID, doc.getId()), doc.toLuceneDocument());
-
-		index.commit();
+		indexService.submitToIndexAsync(ctx.getIndexName(), ctx.getDocumentId(), text);
 
 		return true;
 	}

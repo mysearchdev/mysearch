@@ -1,12 +1,17 @@
 package dev.mysearch.search;
 
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Properties;
+import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.en.EnglishAnalyzer;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexWriter;
@@ -19,10 +24,17 @@ import org.apache.lucene.store.FSDirectory;
 
 import dev.mysearch.model.MySearchDocument;
 import dev.mysearch.rest.endpont.MySearchException;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class SearchIndex {
+
+	@Data
+	public static class SubmittedDocument {
+		private Document doc;
+		private String id;
+	}
 
 	private Analyzer analyzer;
 	private IndexWriterConfig iwc;
@@ -30,10 +42,28 @@ public class SearchIndex {
 	private FSDirectory dir;
 	private IndexWriter indexWriter;
 	private DirectoryReader reader;
+	private Properties properties;
+	private Set<SubmittedDocument> submittedDocuments = Collections.synchronizedSet(new HashSet<>());
 
 	private boolean readerNeedsToReopen;
 
-	public SearchIndex(String rootIndexDir, String indexName, OpenMode openMode) throws MySearchException {
+	public Set<SubmittedDocument> getSubmittedDocuments() {
+		return submittedDocuments;
+	}
+
+	public void clearSubmittedDocuments() {
+		submittedDocuments.clear();
+	}
+
+	public void submitDocument(SubmittedDocument doc) {
+		this.submittedDocuments.add(doc);
+	}
+
+	public int countSubmittedDocuments() {
+		return this.submittedDocuments.size();
+	}
+
+	public SearchIndex(String rootIndexDir, String indexName, OpenMode openMode, Lang lang) throws MySearchException {
 
 		indexDir = new File(rootIndexDir, indexName);
 
@@ -41,11 +71,30 @@ public class SearchIndex {
 
 			dir = FSDirectory.open(indexDir.toPath());
 
-			analyzer = new EnglishAnalyzer();
+			// load .meta properties file
+			var meta = new File(dir.getDirectory().toFile(), ".meta");
+			if (meta.exists()) {
+				try (var fr = new FileReader(meta)) {
+					this.properties = new Properties();
+					this.properties.load(fr);
+					log.debug("Load index .meta: " + this.properties);
+				}
+			}
+
+			if (properties != null) {
+				analyzer = LangAnalyzer.get(Lang.valueOf(properties.get("lang").toString()));
+			} else {
+				analyzer = LangAnalyzer.get(lang);
+			}
 
 			iwc = new IndexWriterConfig(analyzer);
 			iwc.setOpenMode(openMode);
+
 			indexWriter = new IndexWriter(dir, iwc);
+
+			if (openMode == OpenMode.CREATE) {
+				indexWriter.commit();
+			}
 
 		} catch (IndexNotFoundException e) {
 			FileUtils.deleteQuietly(indexDir);
@@ -84,7 +133,7 @@ public class SearchIndex {
 		log.debug("Closed index: " + dir);
 		IOUtils.closeQuietly(reader);
 		IOUtils.closeQuietly(indexWriter);
-		IOUtils.closeQuietly(analyzer);
+//		IOUtils.closeQuietly(analyzer);
 		IOUtils.closeQuietly(dir);
 	}
 
@@ -110,6 +159,14 @@ public class SearchIndex {
 
 	public Analyzer getAnalyzer() {
 		return this.analyzer;
+	}
+
+	public void setProperties(Properties props) {
+		this.properties = props;
+	}
+
+	public Properties getProperties() {
+		return properties;
 	}
 
 }
