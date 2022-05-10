@@ -1,8 +1,8 @@
 package dev.mysearch.model;
 
 public enum DataType {
-	Token,
 	Text,
+	String,
 	Integer,
 	Long,
 	Float,
