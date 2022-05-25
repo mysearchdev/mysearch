@@ -1,14 +1,41 @@
+/**
+
+Copyright (C) 2022 MySearch.Dev contributors (dev@mysearch.dev) 
+Copyright (C) 2022 Sergey Nechaev (serg.nechaev@gmail.com)
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. 
+
+*/
+
 package dev.mysearch.rest;
 
-import static io.netty.handler.codec.http.HttpResponseStatus.CONTINUE;
-
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.regex.Pattern;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import dev.mysearch.common.Json;
 import dev.mysearch.rest.endpont.AbstractRestEndpoint;
 import dev.mysearch.rest.endpont.MySearchException;
 import dev.mysearch.rest.endpont.RestEndpointContext;
@@ -22,25 +49,11 @@ import dev.mysearch.rest.endpont.index.IndexGetEndpoint;
 import dev.mysearch.rest.endpont.server.ServerInfoEndpoint;
 import dev.mysearch.rest.endpont.server.ServerPingEndpoint;
 import dev.mysearch.rest.model.RestResponse;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.ChannelHandler.Sharable;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpHeaderValues;
-import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpUtil;
-import io.netty.handler.codec.http.QueryStringDecoder;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-@Component
-@Sharable
-public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object> implements InitializingBean {
+@RestController
+public class SearchHttpServerHandler implements InitializingBean {
 
 	@Autowired
 	private ServerInfoEndpoint serverInfoEndpoint;
@@ -73,58 +86,44 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 	public void afterPropertiesSet() throws Exception {
 	}
 
-	@Override
-	public void channelReadComplete(ChannelHandlerContext ctx) {
-		ctx.flush();
-	}
+	@RequestMapping(path = "/**")
+	public RestResponse process(HttpServletRequest req, HttpServletResponse resp) {
 
-	@Override
-	protected void channelRead0(ChannelHandlerContext ctx, Object msg) {
+		final var endpointContext = new RestEndpointContext();
+		endpointContext.setReq(req);
+		endpointContext.setContentType(req.getHeader(HttpHeaders.CONTENT_TYPE));
 
-		var req = (HttpRequest) msg;
+		var endpoint = findEnpoint(req, endpointContext);
 
-		if (msg instanceof HttpRequest) {
+		if (endpoint == null) {
+			return error(resp, "Endpoint not found", HttpStatus.NOT_FOUND);
+		}
 
-			var dec = new QueryStringDecoder(req.uri());
+		if (false == endpoint.isHttpMethodSupported(req.getMethod())) {
+			return error(resp,
+					"This endpoint support HTTP method " + Arrays.toString(endpoint.getSupportedHttpMethods()),
+					HttpStatus.METHOD_NOT_ALLOWED);
+		}
 
-			try {
+		try {
+			final var endpointResult = endpoint.service(endpointContext);
 
-				final var endpointContext = new RestEndpointContext();
-				endpointContext.setReq(req);
-				endpointContext.setDec(dec);
+			var responseObject = RestResponse.of(endpointResult);
 
-				var endpoint = findEnpoint(req, dec, endpointContext);
+			log.debug("responseObject: " + responseObject);
 
-				if (endpoint == null) {
-					error(ctx, req, "Endpoint not found", HttpResponseStatus.NOT_FOUND);
-					return;
-				}
+			return responseObject;
 
-				if (false == req.method().equals(endpoint.getMethod())) {
-					error(ctx, req, "HTTP method to used for this endpoint is " + endpoint.getMethod(),
-							HttpResponseStatus.METHOD_NOT_ALLOWED);
-					return;
-				}
+		} catch (MySearchException ex) {
 
-				final var endpointResult = endpoint.service(endpointContext);
+			return error(resp, ex.getMessage(), ex.getStatusCode());
 
-				var resp = RestResponse.of(endpointResult);
+		} catch (Exception e) {
 
-				writeResponse(ctx, req, resp, HttpResponseStatus.OK);
+			log.error("Error: ", e);
 
-			} catch (Exception e) {
+			return error(resp, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
 
-				if (false == e instanceof MySearchException) {
-					log.error("Error: ", e);
-				}
-
-				error(ctx, req, e.getMessage(), HttpResponseStatus.INTERNAL_SERVER_ERROR);
-
-			}
-
-		} else {
-			// 404
-			error(ctx, req, "Endpoint not found", HttpResponseStatus.NOT_FOUND);
 		}
 
 	}
@@ -135,11 +134,11 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 
 	private final Pattern DocumentSearchPattern = Pattern.compile("^/[a-z0-9_]+/search$");
 
-	private AbstractRestEndpoint findEnpoint(HttpRequest req, QueryStringDecoder dec,
-			RestEndpointContext endpointContext) {
+	private AbstractRestEndpoint findEnpoint(HttpServletRequest req, RestEndpointContext endpointContext) {
 
 		// Extract index name
-		var rawPath = dec.rawPath();
+		var method = HttpMethod.valueOf(req.getMethod());
+		var rawPath = req.getRequestURI();
 
 		log.debug("Raw path: " + rawPath);
 
@@ -161,11 +160,11 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 		{
 			var matcher = IndexPattern.matcher(rawPath);
 			if (matcher.matches()) {
-				if (req.method() == HttpMethod.DELETE) {
+				if (method == HttpMethod.DELETE) {
 					return this.indexDropEndpoint;
-				} else if (req.method() == HttpMethod.POST) {
+				} else if (method == HttpMethod.POST) {
 					return this.indexCreateEndpoint;
-				} else if (req.method() == HttpMethod.GET) {
+				} else if (method == HttpMethod.GET) {
 					return this.indexGetEndpoint;
 				}
 			}
@@ -178,11 +177,20 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 
 				endpointContext.setDocumentId(matcher.group(1));
 
-				if (req.method() == HttpMethod.DELETE) {
+				if (method == HttpMethod.DELETE) {
 					return this.documentDeleteByIdEndpoint;
-				} else if (req.method() == HttpMethod.GET) {
+				} else if (method == HttpMethod.GET) {
 					return this.documentGetByIdEndpoint;
-				} else if (req.method() == HttpMethod.PUT) {
+				} else if (method == HttpMethod.PUT) {
+
+					// get request body
+					try {
+						var body = IOUtils.toString(req.getInputStream(), StandardCharsets.UTF_8);
+						endpointContext.setRequestBody(body);
+					} catch (IOException e) {
+						log.error("Error: ", e);
+					}
+
 					return this.documentAddEndpoint;
 				}
 			}
@@ -193,46 +201,12 @@ public class SearchHttpServerHandler extends SimpleChannelInboundHandler<Object>
 
 	}
 
-	private void writeResponse(ChannelHandlerContext ctx, HttpRequest req, byte[] responseBytes,
-			HttpResponseStatus status) {
-
-		if (HttpUtil.is100ContinueExpected(req)) {
-			ctx.write(new DefaultFullHttpResponse(req.protocolVersion(), CONTINUE));
-		}
-
-		var keepAlive = HttpUtil.isKeepAlive(req);
-
-		var response = new DefaultFullHttpResponse(req.protocolVersion(), status,
-				Unpooled.wrappedBuffer(responseBytes));
-		response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json");
-		response.headers().set(HttpHeaderNames.CONTENT_LENGTH, responseBytes.length);
-
-		if (!keepAlive) {
-			ctx.write(response).addListener(ChannelFutureListener.CLOSE);
-		} else {
-			response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
-			ctx.write(response);
-		}
-
-	}
-
-	private void error(ChannelHandlerContext ctx, HttpRequest req, String message, HttpResponseStatus status) {
+	private RestResponse<Boolean> error(HttpServletResponse resp, String message, HttpStatus status) {
+		resp.setStatus(status.value());
 		final var error = new RestResponse<Boolean>();
 		error.setError(true);
 		error.setErrorMessage(message);
-		writeResponse(ctx, req, error, status);
-	}
-
-	private void writeResponse(ChannelHandlerContext ctx, HttpRequest req, RestResponse resp,
-			HttpResponseStatus status) {
-		var responseBytes = Json.writeValueAsBytes(resp);
-		writeResponse(ctx, req, responseBytes, status);
-	}
-
-	@Override
-	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-		cause.printStackTrace();
-		ctx.close();
+		return error;
 	}
 
 }

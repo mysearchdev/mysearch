@@ -1,3 +1,21 @@
+/**
+
+Copyright (C) 2022 MySearch.Dev contributors (dev@mysearch.dev) 
+Copyright (C) 2022 Sergey Nechaev (serg.nechaev@gmail.com)
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. 
+
+*/
 package dev.mysearch.search;
 
 import java.io.File;
@@ -226,44 +244,16 @@ public class IndexService implements InitializingBean, DisposableBean {
 
 	}
 
-	public void addToIndex(String indexName, String id, String text, boolean commit) throws Exception, IOException {
+	public void submitToIndexAsync(String indexName, MySearchDocument mySearchDoc) throws Exception, IOException {
 
+		var submission = new SearchIndex.SubmittedDocument();
+		submission.setDoc(mySearchDoc.toLuceneDocument());
+		submission.setId(mySearchDoc.getId());
+		
 		var index = this.getExistingIndex(indexName);
 
-		var doc = toDocument(indexName, id, text);
-
-		index.updateDocument(new Term(MySearchDocument.DOC_ID, id), doc);
-
-		if (commit) {
-			index.commit();
-		}
-
-	}
-
-	private Document toDocument(String indexName, String documentId, String text) {
-
-		var doc = new Document();
-
-		var f = new StringField(MySearchDocument.DOC_ID, documentId, Field.Store.YES);
-		doc.add(f);
-
-		doc.add(new TextField(MySearchDocument.TEXT_ID, text, Field.Store.YES));
-
-		var date = DateFormatUtils.ISO_8601_EXTENDED_DATETIME_TIME_ZONE_FORMAT.format(new Date());
-		doc.add(new StringField(MySearchDocument.DATE_ID, date, Field.Store.YES));
-
-		return doc;
-	}
-
-	public void submitToIndexAsync(String indexName, String documentId, String text) throws Exception, IOException {
-		final var index = this.getExistingIndex(indexName);
-		final var doc = toDocument(indexName, documentId, text);
-
-		var submission = new SubmittedDocument();
-		submission.setDoc(doc);
-		submission.setId(documentId);
-
 		index.submitDocument(submission);
+
 	}
 
 	@Scheduled(fixedDelay = 1000)

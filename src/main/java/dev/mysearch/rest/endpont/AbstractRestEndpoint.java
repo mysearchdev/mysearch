@@ -1,11 +1,26 @@
+/**
+
+Copyright (C) 2022 MySearch.Dev contributors (dev@mysearch.dev) 
+Copyright (C) 2022 Sergey Nechaev (serg.nechaev@gmail.com)
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. 
+
+*/
+
 package dev.mysearch.rest.endpont;
 
-import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.ArrayUtils;
 
-import dev.mysearch.common.Json;
-import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpRequest;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -13,31 +28,10 @@ public abstract class AbstractRestEndpoint<T> {
 
 	public abstract T service(RestEndpointContext ctx) throws MySearchException, Exception;
 
-	public abstract HttpMethod getMethod();
-
-	protected static <E> E getRequestBodyAsObject(HttpRequest req, Class<E> c) {
-
-		if (req instanceof FullHttpRequest) {
-			var json = ((io.netty.handler.codec.http.FullHttpRequest) req).content()
-					.toString(java.nio.charset.StandardCharsets.UTF_8);
-			try {
-				return Json.getMapper().readValue(json, c);
-			} catch (Exception e) {
-				log.error("Error: ", e);
-			}
-		}
-		return null;
-
+	public boolean isHttpMethodSupported(String httpMethod) {
+		return ArrayUtils.contains(getSupportedHttpMethods(), httpMethod);
 	}
 
-	protected String getRequestBody(HttpRequest req) {
-		if (req instanceof FullHttpRequest) {
-			return ((io.netty.handler.codec.http.FullHttpRequest) req).content()
-					.toString(java.nio.charset.StandardCharsets.UTF_8);
-		} else {
-			return StringUtils.EMPTY;
-		}
+	public abstract String[] getSupportedHttpMethods();
 
-	}
-	
 }

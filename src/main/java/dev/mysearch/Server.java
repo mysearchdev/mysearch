@@ -1,18 +1,30 @@
+/**
+
+Copyright (C) 2022 MySearch.Dev contributors (dev@mysearch.dev) 
+Copyright (C) 2022 Sergey Nechaev (serg.nechaev@gmail.com)
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. 
+
+*/
+
 package dev.mysearch;
 
 import java.io.File;
-import java.io.IOException;
 import java.lang.management.ManagementFactory;
-import java.nio.charset.StandardCharsets;
-import java.rmi.registry.LocateRegistry;
 
-import javax.management.MBeanServer;
-import javax.management.remote.JMXConnectorServer;
-import javax.management.remote.JMXConnectorServerFactory;
-import javax.management.remote.JMXServiceURL;
-
-import org.apache.commons.io.IOUtils;
-import org.springframework.context.support.ClassPathXmlApplicationContext;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import lombok.Data;
@@ -20,9 +32,10 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Data
+@SpringBootApplication
+@EnableAsync
+@EnableScheduling
 public class Server {
-
-	public static ClassPathXmlApplicationContext ctx;
 
 	/*
 	 * 
@@ -44,48 +57,29 @@ public class Server {
 	 */
 	public static void main(String[] args) throws Exception {
 		
-		createJmxConnectorServer();
-
-		System.out.println("PID: " + ProcessHandle.current().pid());
-
 		if (args != null)
 			for (var arg : args) {
-				System.out.println("Arg: [" + arg + "]");
+				log.info("Arg: [" + arg + "]");
 			}
 
-		System.out.println(IOUtils.toString(Server.class.getResourceAsStream("/banner.txt"), StandardCharsets.UTF_8));
+		log.info("Working dir: " + new File("").getAbsolutePath());
 
-		System.out.println("Working dir: " + new File("").getAbsolutePath());
+		log.info(ManagementFactory.getRuntimeMXBean().getClassPath());
+		log.info(ManagementFactory.getRuntimeMXBean().getLibraryPath());
+		log.info(ManagementFactory.getRuntimeMXBean().getManagementSpecVersion());
+		log.info(ManagementFactory.getRuntimeMXBean().getName());
+		log.info(ManagementFactory.getRuntimeMXBean().getSpecName());
+		log.info(ManagementFactory.getRuntimeMXBean().getSpecVendor());
+		log.info(ManagementFactory.getRuntimeMXBean().getSpecVersion());
+		log.info(ManagementFactory.getRuntimeMXBean().getVmName());
+		log.info(ManagementFactory.getRuntimeMXBean().getVmVendor());
+		log.info(ManagementFactory.getRuntimeMXBean().getVmVersion()+"");
+		log.info(ManagementFactory.getRuntimeMXBean().getInputArguments()+"");
+		log.info(ManagementFactory.getRuntimeMXBean().getSystemProperties()+"");
 
-		System.out.println(ManagementFactory.getRuntimeMXBean().getClassPath());
-		System.out.println(ManagementFactory.getRuntimeMXBean().getLibraryPath());
-		System.out.println(ManagementFactory.getRuntimeMXBean().getManagementSpecVersion());
-		System.out.println(ManagementFactory.getRuntimeMXBean().getName());
-		System.out.println(ManagementFactory.getRuntimeMXBean().getSpecName());
-		System.out.println(ManagementFactory.getRuntimeMXBean().getSpecVendor());
-		System.out.println(ManagementFactory.getRuntimeMXBean().getSpecVersion());
-		System.out.println(ManagementFactory.getRuntimeMXBean().getVmName());
-		System.out.println(ManagementFactory.getRuntimeMXBean().getVmVendor());
-		System.out.println(ManagementFactory.getRuntimeMXBean().getVmVersion());
-		System.out.println(ManagementFactory.getRuntimeMXBean().getInputArguments());
-		System.out.println(ManagementFactory.getRuntimeMXBean().getSystemProperties());
-
-		ctx = new ClassPathXmlApplicationContext("/spring-context.xml");
-		ctx.start();
+	    SpringApplication.run(Server.class, args);
 
 	}
 	
-	private static void createJmxConnectorServer() throws IOException {
-	    LocateRegistry.createRegistry(1234);
-	    MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-	    JMXServiceURL url = new JMXServiceURL("service:jmx:rmi://localhost/jndi/rmi://localhost:1234/jmxrmi");
-	    JMXConnectorServer svr = JMXConnectorServerFactory.newJMXConnectorServer(url, null, mbs);
-	    svr.start();
-	}
-
-	public static void close() {
-		ctx.stop();
-		ctx.close();
-	}
 
 }
