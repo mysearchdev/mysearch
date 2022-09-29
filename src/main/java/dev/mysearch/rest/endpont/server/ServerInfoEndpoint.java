@@ -18,6 +18,7 @@ limitations under the License.
 */
 package dev.mysearch.rest.endpont.server;
 
+import org.apache.commons.io.FileUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.info.BuildProperties;
 import org.springframework.core.env.Environment;
@@ -52,6 +53,8 @@ public class ServerInfoEndpoint extends AbstractRestEndpoint<ServerInfoEndpoint.
 	public static class Memory {
 		long total;
 		long available;
+		String strTotal;
+		String strAvailable;
 	}
 
 	@Data
@@ -124,6 +127,8 @@ public class ServerInfoEndpoint extends AbstractRestEndpoint<ServerInfoEndpoint.
 		// Memory
 		info.getMemory().setAvailable(si.getHardware().getMemory().getAvailable());
 		info.getMemory().setTotal(si.getHardware().getMemory().getTotal());
+		info.getMemory().setStrAvailable(FileUtils.byteCountToDisplaySize(info.getMemory().getAvailable()));
+		info.getMemory().setStrTotal(FileUtils.byteCountToDisplaySize(info.getMemory().getTotal()));
 
 		// CPU
 		info.getCpu().setCpu64bit(si.getHardware().getProcessor().getProcessorIdentifier().isCpu64bit());

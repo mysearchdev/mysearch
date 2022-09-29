@@ -19,5 +19,7 @@ limitations under the License.
 package dev.mysearch.rest.action;
 
 public class Urls {
-	public static String ServerInfo = "/api/server/info";
+	public static String ServerInfo = "/_/server/info";
+	public static String ServerPing = "/_/server/ping";
+	
 }

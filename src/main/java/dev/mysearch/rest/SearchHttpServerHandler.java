@@ -36,6 +36,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import dev.mysearch.rest.action.Urls;
 import dev.mysearch.rest.endpont.AbstractRestEndpoint;
 import dev.mysearch.rest.endpont.MySearchException;
 import dev.mysearch.rest.endpont.RestEndpointContext;
@@ -137,20 +138,20 @@ public class SearchHttpServerHandler implements InitializingBean {
 	private AbstractRestEndpoint findEnpoint(HttpServletRequest req, RestEndpointContext endpointContext) {
 
 		// Extract index name
-		var method = HttpMethod.valueOf(req.getMethod());
-		var rawPath = req.getRequestURI();
+		final var method = HttpMethod.valueOf(req.getMethod());
+		final var rawPath = req.getRequestURI();
 
 		log.debug("Raw path: " + rawPath);
 
-		if (rawPath.equals("/_/server/info"))
+		if (rawPath.equals(Urls.ServerInfo))
 			return this.serverInfoEndpoint;
 
-		if (rawPath.equals("/_/server/ping"))
+		if (rawPath.equals(Urls.ServerPing))
 			return this.serverPingEndpoint;
 
 		// Search documents
 		{
-			var matcher = DocumentSearchPattern.matcher(rawPath);
+			final var matcher = DocumentSearchPattern.matcher(rawPath);
 			if (matcher.matches()) {
 				return this.documentsSearchEndpoint;
 			}
@@ -158,7 +159,7 @@ public class SearchHttpServerHandler implements InitializingBean {
 
 		// Index operations?
 		{
-			var matcher = IndexPattern.matcher(rawPath);
+			final var matcher = IndexPattern.matcher(rawPath);
 			if (matcher.matches()) {
 				if (method == HttpMethod.DELETE) {
 					return this.indexDropEndpoint;
